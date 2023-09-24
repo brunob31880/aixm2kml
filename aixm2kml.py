@@ -13,9 +13,34 @@ from bs4 import BeautifulSoup
 from pyproj import Proj, transform
 from pyproj import Transformer
 import random
+
+
 # Ignorer les avertissements RuntimeWarning de shapely
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='shapely')
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+
+color_mapping = {
+    'TMA': '7f0000ff',
+    'CBA': '7fff0000',
+    'CTA': '7f00ff00',
+    'CTR': '7f00ffff',
+    'D': '7fa020f0',
+    'D-OTHER': '7fffff00',
+    'FIR': '7ffa5000',
+    'OCA': '7fa52a2a',
+    'P': '7fffc0cb',
+    'R': '7f808080',
+    'RAS': '7fe0ffff',  # lightblue avec 50% de transparence
+    'SECTOR': '7fffcc00',  # gold avec 50% de transparence
+    'TRA': '7fa020f0',  # purple avec 50% de transparence
+    'UIR': '7f90ee90',  # lightgreen avec 50% de transparence
+    'UTA': '7fffff7f'   # lightyellow avec 50% de transparence
+}
+
+
+
+
+
 
 def random_color():
     """Retourne une couleur aléatoire en format KML avec transparence."""
@@ -32,8 +57,10 @@ def geojson_to_kml(geojson, output_filename):
         prop = feature['properties']
         name = prop.get('name', '')
         desc = prop.get('description', '')
-        # Générez une couleur aléatoire pour ce volume
-        color = random_color()
+        codetype = prop.get('codetype', '')
+        # Utiliser la couleur définie dans color_mapping ou blanc par défaut si le codetype n'est pas trouvé
+        color = color_mapping.get(codetype, simplekml.Color.white)
+        #print(codetype)
         if geom['type'] == 'Point':
             pnt = kml.newpoint(name=name, description=desc, coords=[tuple(geom['coordinates'])])
             pnt.style.iconstyle.color = color
@@ -690,30 +717,29 @@ def extract_abd(aixm):
     for o in aixm.find_all('abd'):
         boundary = abd2json(ase, gbr, o)
         
-        # Utilisez le code ou le nom pour nommer le fichier
+        # Utilisez le codetype pour créer le sous-répertoire
+        codetype = boundary['properties'].get('codetype', 'unknown')
+        codetype_dir = os.path.join('airspace', codetype)
+        if not os.path.exists(codetype_dir):
+            os.makedirs(codetype_dir)
+        
+        # Utilisez le codeid pour nommer le fichier
         filename = boundary['properties'].get('codeid', 'unknown')
         
         # Évitez les caractères spéciaux dans le nom de fichier
         filename = ''.join(e for e in filename if e.isalnum())
 
-        # Obtenez le type de géométrie
-        geom_type = boundary['geometry']['type']
-
-        # Assurez-vous que le sous-répertoire pour ce type de géométrie existe
-        geom_dir = os.path.join('airspace', geom_type)
-        if not os.path.exists(geom_dir):
-            os.makedirs(geom_dir)
-        
         # Créez le chemin complet du fichier avec le sous-répertoire
-        kml_file_path = os.path.join(geom_dir, f"{filename}.kml")
+        kml_file_path = os.path.join(codetype_dir, f"{filename}.kml")
         
         # Convertissez la limite en GeoJSON et sauvegardez-la en KML
         geojson_data = {"type": "FeatureCollection", "features": [boundary]}
-        # Si le codeid est "LFTR200E", affichez geojson_data
-        if filename == "LFTR200E":
-            print("**************************************")
-            print(geojson_data)   
+        # Si le codeid est "LFLX", affichez geojson_data
+        #if filename == "LFLX":
+        #    print("**************************************")
+        #    print(geojson_data)   
         geojson_to_kml(geojson_data, kml_file_path)
+
 
 
 
